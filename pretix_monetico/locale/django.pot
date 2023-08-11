@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-03-07 19:01+0100\n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+""
+
+msgid "Monetico Pretix payment plugin"
+msgstr ""
+
+msgid "plugin for accepting Monetico payments"
+msgstr ""
+
+msgid "Monetico Payment"
+msgstr ""
+
+msgid "Monetico key"
+msgstr ""
+
+msgid "This is your Monetico key"
+msgstr ""
+
+msgid "Monetico server"
+msgstr ""
+
+msgid "Monetico company code"
+msgstr ""
+
+msgid "Your Monetico company code"
+msgstr ""
+
+msgid "Monetico payment URL"
+msgstr ""
+
+msgid "The final part of the Monetico URL"
+msgstr ""
+
+msgid "Your Monetico company code"
+msgstr ""

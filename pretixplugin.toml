@@ -1,0 +1,5 @@
+[plugin]
+package = "pretix-monetico"
+modules = [ "pretix_monetico" ]
+marketplace_name = "monetico"
+
