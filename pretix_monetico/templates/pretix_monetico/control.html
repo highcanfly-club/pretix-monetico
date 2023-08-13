@@ -1,0 +1,31 @@
+{% load i18n %}
+{% if payment.state == "confirmed" and order.status == "p" %}
+<p>{% blocktrans trimmed %}
+    This order has been paid via Paybox/Up2Pay Payment.
+    {% endblocktrans %}</p>
+
+<dl class="dl-horizontal">
+    <dt>{% trans "Transaction" %}</dt>
+    <dd>{{ payment_info.transactionId }}</dd>
+    <dt>{% trans "Authorization" %}</dt>
+    <dd>{{ payment_info.authorizationId }}</dd>
+    <dt>{% trans "Card type" %}</dt>
+    <dd>{{ payment_info.cardType }}</dd>
+    <dt>{% trans "Card number" %}</dt>
+    <dd>{{ payment_info.cardNumber }}-- ---- ----</dd>
+    <dt>{% trans "Card expiration" %}</dt>
+    <dd>{{ payment_info.cardExpiration }}</dd>
+    <dt>{% trans "Payment date" %}</dt>
+    <dd>{{ payment_info.date }} {{ payment_info.time }}</dd>
+    <dt>{% trans "Reference" %}</dt>
+    <dd>{{ payment_info.payboxRef }}</dd>
+</dl>
+{% else %}
+<p>{% blocktrans trimmed %}
+    This order has been planned to be paid via Paybox/Up2Pay Payment, but no payment has been received yet.
+    {% endblocktrans %}</p>
+<dl class="dl-horizontal">
+    <dt>{% trans "Reference code" %}</dt>
+    <dd>{{ order.full_code }}</dd>
+</dl>
+{% endif %}

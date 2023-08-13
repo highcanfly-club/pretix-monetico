@@ -1,0 +1,51 @@
+{% load compress %}
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{{ settings.PRETIX_INSTANCE_NAME }}</title>
+    <link rel="stylesheet" type="text/x-scss" href="{% static " pretixbase/scss/cachedfiles.scss" %}" />
+</head>
+
+<body>
+    <div class="container">
+        <noscript>
+            <div class="alert alert-warning">
+                {% trans "Please turn on JavaScript." %}
+            </div>
+        </noscript>
+        <form action="{{action}}" method="post" id="paybox_sending_form">
+            {{html|safe}}
+            <button class="btn btn-block btn-default btn-lg" type="submit">{% trans "Go to Monetico secured website" %}</button>
+        </form>
+    </div>
+    <script type="text/javascript" nonce="{{ nonce }}">
+        /* © Ronan LE MEILlAT 2023 */
+
+        function waitForElm(selector) {
+            return new Promise(resolve => {
+                if (document.querySelector(selector)) {
+                    return resolve(document.querySelector(selector));
+                }
+
+                const observer = new MutationObserver(mutations => {
+                    if (document.querySelector(selector)) {
+                        resolve(document.querySelector(selector));
+                        observer.disconnect();
+                    }
+                });
+
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            });
+        }
+
+        waitForElm('#paybox_sending_form').then((submitElm) => { submitElm.submit() });
+    </script>
+</body>
+
+</html>

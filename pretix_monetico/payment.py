@@ -1,4 +1,5 @@
 import base64
+import json
 import uuid
 import sys
 from collections import OrderedDict
@@ -21,7 +22,13 @@ from pretix.base.payment import BasePaymentProvider
 from pretix.helpers.countries import CachedCountries
 from pretix.presale.views.cart import cart_session
 
+from pretix_monetico.moneticoPaiementEpt import (
+    MoneticoPaiement_Ept,
+    MoneticoPaiement_Hmac,
+)
+
 MONETICOPAIEMENT_VERSION = "3.0"
+
 
 def get_signed_uuid4(request):
     signer = Signer()
@@ -43,6 +50,18 @@ def getNonce(request):
     if "_monetico_nonce" not in request.session:
         request.session["_monetico_nonce"] = get_random_string(32)
     return request.session["_monetico_nonce"]
+
+
+# TODO implement verify_response in payment.py
+def verify_response(uri):
+    return True
+
+
+# TODO implement get_object_response in payment.py
+def get_object_response(uri):
+    return """
+{}
+"""
 
 
 class MoneticoPayment(BasePaymentProvider):
@@ -173,6 +192,7 @@ class MoneticoPayment(BasePaymentProvider):
                         label=_("Card Holder Street"),
                         required=True,
                         initial=self.ia.street or None,
+                        max_length=50
                     ),
                 ),
                 (
@@ -180,6 +200,7 @@ class MoneticoPayment(BasePaymentProvider):
                     forms.CharField(
                         label=_("Card Holder Address Complement"),
                         required=False,
+                        max_length=50
                     ),
                 ),
                 (
@@ -214,9 +235,7 @@ class MoneticoPayment(BasePaymentProvider):
         print("MoneticoPayment.checkout_prepare", file=sys.stderr)
         cs = cart_session(request)
         request.session["payment_moneticopayment_itemcount"] = cart["itemcount"]
-        request.session["payment_moneticopayment_total"] = self._decimal_to_int(
-            cart["total"]
-        )
+        request.session["payment_moneticopayment_total"] = str(cart["total"])
         request.session["payment_moneticopayment_uuid4"] = str(uuid.uuid4())
         request.session["payment_moneticopayment_event_slug"] = self.event.slug
         request.session[
@@ -244,7 +263,8 @@ class MoneticoPayment(BasePaymentProvider):
             "order_code": payment.order.code,
             "order_secret": payment.order.secret,
             "payment_id": payment.pk,
-            "amount": int(100 * payment.amount),
+            "amount": str(payment.amount),
+            "currency": self.event.currency,
             "merchant_id": self.settings.get("merchant_id"),
         }
         url = (
@@ -261,11 +281,103 @@ class MoneticoPayment(BasePaymentProvider):
         languageDjango = get_language()
         localeDjango = to_locale(languageDjango)
         baseLocale = localeDjango[0:2]
-        subLocale = localeDjango[3:5].upper()
-        if subLocale == "":
-            subLocale = baseLocale.upper()
-        locale = "{}-{}".format(baseLocale, subLocale)
-        return locale
+        return baseLocale.upper()
+
+    def get_monetico_params(self, request):
+        # for key, value in request.session.items():
+        #     print("{} => {}".format(key, value), file=sys.stderr)
+        sLang = self.get_monetico_locale(request)
+        sDate = datetime.now().strftime("%d/%m/%Y:%H:%M:%S")
+        sMontant = request.session['monetico_payment_info']['amount']
+        sDevise = request.session['monetico_payment_info']['currency']
+        sReference = request.session['monetico_payment_info']['order_code']
+        sEmail = request.session["payment_moneticopayment_email"]
+        sTexteLibre = ''
+        contexteCommand = {
+            "billing": {
+                "firstName": request.session["payment_moneticopayment_firstname"],
+                "lastName": request.session["payment_moneticopayment_lastname"],
+                "addressLine1": request.session["payment_moneticopayment_line1"],
+                "city": request.session["payment_moneticopayment_city"],
+                "postalCode": request.session["payment_moneticopayment_postal_code"],
+                "country": request.session["payment_moneticopayment_country"],
+                "email": sEmail,
+            }
+        }
+        if len(request.session["payment_moneticopayment_line2"]) > 0:
+            contexteCommand["billing"]["addressLine2"] = request.session["payment_moneticopayment_line2"]
+        utf8ContexteCommande = json.dumps(contexteCommand).encode("utf8")
+        sContexteCommande = base64.b64encode(utf8ContexteCommande).decode()
+        oEpt = MoneticoPaiement_Ept(
+            MONETICOPAIEMENT_VERSION=MONETICOPAIEMENT_VERSION,
+            MONETICOPAIEMENT_KEY=self.settings.get("monetico_key"),
+            MONETICOPAIEMENT_EPTNUMBER=self.settings.get("monetico_ept_number"),
+            MONETICOPAIEMENT_URLSERVER=self.settings.get("monetico_url_server"),
+            MONETICOPAIEMENT_URLPAYMENT=self.settings.get("monetico_payment_url"),
+            MONETICOPAIEMENT_COMPANYCODE=self.settings.get("monetico_company_code"),
+            MONETICOPAIEMENT_URLOK=build_absolute_uri(
+                request.event, "plugins:pretix_monetico:monetico.ok"
+            ),
+            MONETICOPAIEMENT_URLKO=build_absolute_uri(
+                request.event, "plugins:pretix_monetico:monetico.nok"
+            ),
+            sLang=sLang,
+        )
+        oMac = MoneticoPaiement_Hmac(oEpt)
+        sChaineMAC = "*".join(
+            [
+                f"TPE={oEpt.sNumero}",
+                f"contexte_commande={sContexteCommande}",
+                f"date={sDate}",
+                f"dateech1={''}",
+                f"dateech2={''}",
+                f"dateech3={''}",
+                f"dateech4={''}",
+                f"lgue={sLang}",
+                f"mail={request.session['payment_moneticopayment_email']}",
+                f"montant={sMontant}{sDevise}",
+                f"montantech1={''}",
+                f"montantech2={''}",
+                f"montantech3={''}",
+                f"montantech4={''}",
+                f"nbrech={''}",
+                f"reference={sReference}",
+                f"societe={oEpt.sCodeSociete}",
+                f"texte-libre={''}",
+                f"url_retour_err={oEpt.sUrlKo}",
+                f"url_retour_ok={oEpt.sUrlOk}",
+                f"version={oEpt.sVersion}",
+            ]
+        )
+        print(sChaineMAC, file=sys.stderr)
+        hmac = oMac.computeHMACSHA1(sChaineMAC)
+        
+        form = '''<input type="hidden" name="version"           id="version"           value="''' + oEpt.sVersion + '''" />
+        <input type="hidden" name="TPE"               id="TPE"               value="''' + oEpt.sNumero + '''" />
+        <input type="hidden" name="contexte_commande" id="contexte_commande" value="''' + sContexteCommande + '''" />
+        <input type="hidden" name="date"              id="date"              value="''' + sDate + '''" />
+        <input type="hidden" name="montant"           id="montant"           value="''' + sMontant + sDevise + '''" />
+        <input type="hidden" name="reference"         id="reference"         value="''' + sReference + '''" />
+        <input type="hidden" name="MAC"               id="MAC"               value="''' + hmac + '''" />
+        <input type="hidden" name="url_retour_ok"     id="url_retour_ok"     value="''' + oEpt.sUrlOk + '''" />
+        <input type="hidden" name="url_retour_err"    id="url_retour_err"    value="''' + oEpt.sUrlKo + '''" />
+        <input type="hidden" name="lgue"              id="lgue"              value="''' + sLang + '''" />
+        <input type="hidden" name="societe"           id="societe"           value="''' + oEpt.sCodeSociete + '''" />
+        <input type="hidden" name="texte-libre"       id="texte-libre"       value="''' + sTexteLibre + '''" />
+        <input type="hidden" name="mail"              id="mail"              value="''' + sEmail + '''" />
+        <input type="hidden" name="nbrech"            id="nbrech"            value="''' + '' + '''" />
+        <input type="hidden" name="dateech1"          id="dateech1"          value="''' + '' + '''" />
+        <input type="hidden" name="montantech1"       id="montantech1"       value="''' + '' + '''" />
+        <input type="hidden" name="dateech2"          id="dateech2"          value="''' + '' + '''" />
+        <input type="hidden" name="montantech2"       id="montantech2"       value="''' + '' + '''" />
+        <input type="hidden" name="dateech3"	      id="dateech3"          value="''' + '' + '''" />
+        <input type="hidden" name="montantech3"       id="montantech3"       value="''' + '' + '''" />
+        <input type="hidden" name="dateech4"	      id="dateech4"          value="''' + '' + '''" />
+        <input type="hidden" name="montantech4"       id="montantech4"       value="''' + '' + '''" />'''
+        print(form, file=sys.stderr)
+        return {"html": form,
+                "action": oEpt.sUrlPaiement,
+                "hmac": hmac}
 
     def _decimal_to_int(self, amount):
         places = settings.CURRENCY_PLACES.get(self.event.currency, 2)
