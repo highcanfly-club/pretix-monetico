@@ -134,18 +134,12 @@ def monetico_return(request, *args, **kwargs):
             if bHMac:
                 if Certification['code-retour'] == "Annulation":
                     payment.fail()
-                    return redirect(eventreverse(event, 'presale:event.order', kwargs={
-                        'order': payment.order.code,
-                        'secret': payment.order.secret
-                    }))
+                    return HttpResponse('NOK',status=200)
 
                 elif Certification['code-retour'] == "payetest" or Certification['code-retour'] == "paiement":
                     payment.info_data = str(base64.b64decode(Certification['authentification']))
                     payment.confirm()
-                    return redirect(eventreverse(event, 'presale:event.order', kwargs={
-                        'order': payment.order.code,
-                        'secret': payment.order.secret
-                    }) + '?paid=yes')
+                    return HttpResponse('OK',status=200)
     return HttpResponse(
         _("Server Error"),
         status=500,
