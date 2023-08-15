@@ -64,3 +64,4 @@ target/
 
 kit-python
 .vscode
+.venv

@@ -1,27 +1,26 @@
 import base64
 import json
-import uuid
 import sys
+import uuid
 from collections import OrderedDict
-from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
+from Crypto.Hash import SHA256
 from datetime import datetime
 from decimal import Decimal
 from django import forms
 from django.conf import settings
+from django.core.signing import Signer
 from django.forms import Form
 from django.http import HttpRequest
 from django.template.loader import get_template
 from django.utils.crypto import get_random_string
-from django.core.signing import Signer
 from django.utils.translation import get_language, gettext_lazy as _, to_locale
-from pretix.multidomain.urlreverse import build_absolute_uri
-from pretix.base.models import Event
 from django_countries.fields import Country
 from pretix.base.forms.questions import guess_country
-from pretix.base.models import InvoiceAddress, Order, OrderPayment
+from pretix.base.models import Event, InvoiceAddress, Order, OrderPayment
 from pretix.base.payment import BasePaymentProvider
 from pretix.helpers.countries import CachedCountries
+from pretix.multidomain.urlreverse import build_absolute_uri
 from pretix.presale.views.cart import cart_session
 
 from pretix_monetico.moneticoPaiementEpt import (
@@ -31,37 +30,44 @@ from pretix_monetico.moneticoPaiementEpt import (
 
 MONETICOPAIEMENT_VERSION = "3.0"
 
+
 def get_crypto_key():
-    bKey = bytes(settings.SECRET_KEY,"utf-8")
+    bKey = bytes(settings.SECRET_KEY, "utf-8")
     hash_object = SHA256.new(data=bKey)
     return hash_object.digest()
 
-def encrypt(key:bytes,data):
+
+def encrypt(key: bytes, data):
     header = b"header"
     cipher = AES.new(key, AES.MODE_CCM)
     cipher.update(header)
     ciphertext, tag = cipher.encrypt_and_digest(data)
 
-    json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
-    json_v = [ base64.b64encode(x).decode('utf-8') for x in (cipher.nonce, header, ciphertext, tag) ]
-    bJson = bytes(json.dumps(dict(zip(json_k, json_v))),"utf-8")
-    out = base64.b64encode(bJson).decode('utf-8')
+    json_k = ["nonce", "header", "ciphertext", "tag"]
+    json_v = [
+        base64.b64encode(x).decode("utf-8")
+        for x in (cipher.nonce, header, ciphertext, tag)
+    ]
+    bJson = bytes(json.dumps(dict(zip(json_k, json_v))), "utf-8")
+    out = base64.b64encode(bJson).decode("utf-8")
     return out
 
-def decrypt(key,b64_input):
+
+def decrypt(key, b64_input):
     json_input = base64.b64decode(b64_input)
     try:
         b64 = json.loads(json_input)
-        json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
-        jv = {k:base64.b64decode(b64[k]) for k in json_k}
+        json_k = ["nonce", "header", "ciphertext", "tag"]
+        jv = {k: base64.b64decode(b64[k]) for k in json_k}
 
-        cipher = AES.new(key, AES.MODE_CCM, nonce=jv['nonce'])
-        cipher.update(jv['header'])
-        plaintext = cipher.decrypt_and_verify(jv['ciphertext'], jv['tag'])
-        return plaintext.decode('utf-8')
+        cipher = AES.new(key, AES.MODE_CCM, nonce=jv["nonce"])
+        cipher.update(jv["header"])
+        plaintext = cipher.decrypt_and_verify(jv["ciphertext"], jv["tag"])
+        return plaintext.decode("utf-8")
     except (ValueError, KeyError):
-        return ''
-    
+        return ""
+
+
 def get_signed_uuid4(request):
     signer = Signer()
     uuid4_signed_bytes = signer.sign(
@@ -70,15 +76,15 @@ def get_signed_uuid4(request):
     signed_uuid4 = uuid4_signed_bytes.hex().upper()
     return signed_uuid4
 
-def get_signed_string(instr:str):
+
+def get_signed_string(instr: str):
     signer = Signer()
-    signed_bytes = signer.sign(
-        instr
-    ).encode("ascii")
+    signed_bytes = signer.sign(instr).encode("ascii")
     signed_str = signed_bytes.hex().upper()
     return signed_str
 
-def check_signed_string(instr:str):
+
+def check_signed_string(instr: str):
     signer = Signer()
     signed_bytes = bytes.fromhex(instr)
     signed = signed_bytes.decode("ascii")
@@ -87,6 +93,7 @@ def check_signed_string(instr:str):
     except:
         original = None
     return original
+
 
 def check_signed_uuid4(signed_uuid4):
     signer = Signer()
@@ -241,7 +248,7 @@ class MoneticoPayment(BasePaymentProvider):
                         label=_("Card Holder Street"),
                         required=True,
                         initial=self.ia.street or None,
-                        max_length=50
+                        max_length=50,
                     ),
                 ),
                 (
@@ -249,7 +256,7 @@ class MoneticoPayment(BasePaymentProvider):
                     forms.CharField(
                         label=_("Card Holder Address Complement"),
                         required=False,
-                        max_length=50
+                        max_length=50,
                     ),
                 ),
                 (
@@ -316,9 +323,9 @@ class MoneticoPayment(BasePaymentProvider):
             "currency": self.event.currency,
             "merchant_id": self.settings.get("merchant_id"),
             "organizer": self.event.organizer.slug,
-            "event": self.event.slug
+            "event": self.event.slug,
         }
-        
+
         # decrypto = decrypt(key,crypto)
         url = (
             build_absolute_uri(
@@ -352,7 +359,7 @@ class MoneticoPayment(BasePaymentProvider):
             ),
             sLang=self.get_monetico_locale(),
         )
-    
+
     def get_oHMac(self):
         oEpt = self.get_monetico_paiement()
         return MoneticoPaiement_Hmac(oEpt)
@@ -362,13 +369,15 @@ class MoneticoPayment(BasePaymentProvider):
         #     print("{} => {}".format(key, value), file=sys.stderr)
         sLang = self.get_monetico_locale()
         sDate = datetime.now().strftime("%d/%m/%Y:%H:%M:%S")
-        sMontant = request.session['monetico_payment_info']['amount']
-        sDevise = request.session['monetico_payment_info']['currency']
-        sReference = request.session['monetico_payment_info']['order_code']
+        sMontant = request.session["monetico_payment_info"]["amount"]
+        sDevise = request.session["monetico_payment_info"]["currency"]
+        sReference = request.session["monetico_payment_info"]["order_code"]
         sEmail = request.session["payment_moneticopayment_email"]
         key = get_crypto_key()
-        payment_info = bytes(json.dumps(request.session["monetico_payment_info"]),"utf-8")
-        crypto = encrypt(key,payment_info)
+        payment_info = bytes(
+            json.dumps(request.session["monetico_payment_info"]), "utf-8"
+        )
+        crypto = encrypt(key, payment_info)
         payment_info_signed = get_signed_string(crypto)
         sTexteLibre = payment_info_signed
         contexteCommand = {
@@ -383,7 +392,9 @@ class MoneticoPayment(BasePaymentProvider):
             }
         }
         if len(request.session["payment_moneticopayment_line2"]) > 0:
-            contexteCommand["billing"]["addressLine2"] = request.session["payment_moneticopayment_line2"]
+            contexteCommand["billing"]["addressLine2"] = request.session[
+                "payment_moneticopayment_line2"
+            ]
         utf8ContexteCommande = json.dumps(contexteCommand).encode("utf8")
         sContexteCommande = base64.b64encode(utf8ContexteCommande).decode()
         oMac = self.get_oHMac()
@@ -414,33 +425,78 @@ class MoneticoPayment(BasePaymentProvider):
         )
         print(sChaineMAC, file=sys.stderr)
         hmac = oMac.computeHMACSHA1(sChaineMAC)
-        
-        form = '''<input type="hidden" name="version"           id="version"           value="''' + oEpt.sVersion + '''" />
-        <input type="hidden" name="TPE"               id="TPE"               value="''' + oEpt.sNumero + '''" />
-        <input type="hidden" name="contexte_commande" id="contexte_commande" value="''' + sContexteCommande + '''" />
-        <input type="hidden" name="date"              id="date"              value="''' + sDate + '''" />
-        <input type="hidden" name="montant"           id="montant"           value="''' + sMontant + sDevise + '''" />
-        <input type="hidden" name="reference"         id="reference"         value="''' + sReference + '''" />
-        <input type="hidden" name="MAC"               id="MAC"               value="''' + hmac + '''" />
-        <input type="hidden" name="url_retour_ok"     id="url_retour_ok"     value="''' + oEpt.sUrlOk + '''" />
-        <input type="hidden" name="url_retour_err"    id="url_retour_err"    value="''' + oEpt.sUrlKo + '''" />
-        <input type="hidden" name="lgue"              id="lgue"              value="''' + sLang + '''" />
-        <input type="hidden" name="societe"           id="societe"           value="''' + oEpt.sCodeSociete + '''" />
-        <input type="hidden" name="texte-libre"       id="texte-libre"       value="''' + sTexteLibre + '''" />
-        <input type="hidden" name="mail"              id="mail"              value="''' + sEmail + '''" />
-        <input type="hidden" name="nbrech"            id="nbrech"            value="''' + '' + '''" />
-        <input type="hidden" name="dateech1"          id="dateech1"          value="''' + '' + '''" />
-        <input type="hidden" name="montantech1"       id="montantech1"       value="''' + '' + '''" />
-        <input type="hidden" name="dateech2"          id="dateech2"          value="''' + '' + '''" />
-        <input type="hidden" name="montantech2"       id="montantech2"       value="''' + '' + '''" />
-        <input type="hidden" name="dateech3"	      id="dateech3"          value="''' + '' + '''" />
-        <input type="hidden" name="montantech3"       id="montantech3"       value="''' + '' + '''" />
-        <input type="hidden" name="dateech4"	      id="dateech4"          value="''' + '' + '''" />
-        <input type="hidden" name="montantech4"       id="montantech4"       value="''' + '' + '''" />'''
+
+        form = (
+            '''<input type="hidden" name="version"           id="version"           value="'''
+            + oEpt.sVersion
+            + '''" />
+        <input type="hidden" name="TPE"               id="TPE"               value="'''
+            + oEpt.sNumero
+            + '''" />
+        <input type="hidden" name="contexte_commande" id="contexte_commande" value="'''
+            + sContexteCommande
+            + '''" />
+        <input type="hidden" name="date"              id="date"              value="'''
+            + sDate
+            + '''" />
+        <input type="hidden" name="montant"           id="montant"           value="'''
+            + sMontant
+            + sDevise
+            + '''" />
+        <input type="hidden" name="reference"         id="reference"         value="'''
+            + sReference
+            + '''" />
+        <input type="hidden" name="MAC"               id="MAC"               value="'''
+            + hmac
+            + '''" />
+        <input type="hidden" name="url_retour_ok"     id="url_retour_ok"     value="'''
+            + oEpt.sUrlOk
+            + '''" />
+        <input type="hidden" name="url_retour_err"    id="url_retour_err"    value="'''
+            + oEpt.sUrlKo
+            + '''" />
+        <input type="hidden" name="lgue"              id="lgue"              value="'''
+            + sLang
+            + '''" />
+        <input type="hidden" name="societe"           id="societe"           value="'''
+            + oEpt.sCodeSociete
+            + '''" />
+        <input type="hidden" name="texte-libre"       id="texte-libre"       value="'''
+            + sTexteLibre
+            + '''" />
+        <input type="hidden" name="mail"              id="mail"              value="'''
+            + sEmail
+            + '''" />
+        <input type="hidden" name="nbrech"            id="nbrech"            value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="dateech1"          id="dateech1"          value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="montantech1"       id="montantech1"       value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="dateech2"          id="dateech2"          value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="montantech2"       id="montantech2"       value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="dateech3"	      id="dateech3"          value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="montantech3"       id="montantech3"       value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="dateech4"	      id="dateech4"          value="'''
+            + ""
+            + '''" />
+        <input type="hidden" name="montantech4"       id="montantech4"       value="'''
+            + ""
+            + """" />"""
+        )
         print(form, file=sys.stderr)
-        return {"html": form,
-                "action": oEpt.sUrlPaiement,
-                "hmac": hmac}
+        return {"html": form, "action": oEpt.sUrlPaiement, "hmac": hmac}
 
     def _decimal_to_int(self, amount):
         places = settings.CURRENCY_PLACES.get(self.event.currency, 2)
