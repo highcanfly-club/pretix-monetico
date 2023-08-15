@@ -41,3 +41,9 @@ msgstr "La dernière partie de l’URL Monetico"
 
 msgid "Your Monetico company code"
 msgstr "Votre code d'entreprise Monetico"
+
+msgid "You will redirected to the Monetico secured website after clicking on 'Place binding order'"
+msgstr ""
+
+msgid "Go to Monetico secured website"
+msgstr ""
