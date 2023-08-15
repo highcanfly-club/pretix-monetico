@@ -1,0 +1,49 @@
+msgid ""
+msgstr ""
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-03-07 19:01+0100\n"
+"PO-Revision-Date: 2023-08-15 14:23+0000\n"
+"Last-Translator: Weblate Admin <ronan.le_meillat@parapente.eu.org>\n"
+"Language-Team: German <https://weblate.oci.sctg.eu.org/projects/pretix-monetico/source/de/>\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 4.18.2\n"
+
+msgid "Monetico Pretix payment plugin"
+msgstr "Monetico Pretix Zahlungs-Plugin"
+
+msgid "plugin for accepting Monetico payments"
+msgstr "Plugin für die Annahme von Monetico-Zahlungen"
+
+msgid "Monetico Payment"
+msgstr "Monetico-Zahlung"
+
+msgid "Monetico key"
+msgstr "Monetico-Schlüssel"
+
+msgid "This is your Monetico key"
+msgstr "Dies ist Ihr Monetico-Schlüssel"
+
+msgid "Monetico server"
+msgstr "Monetico-Server"
+
+msgid "Monetico company code"
+msgstr "Buchungskreis (Monetico)"
+
+msgid "Monetico payment URL"
+msgstr "Monetico-Zahlungs-URL"
+
+msgid "The final part of the Monetico URL"
+msgstr "Der letzte Teil der Monetico-URL"
+
+msgid "Your Monetico company code"
+msgstr "Ihr Monetico-Buchungskreis"
+
+msgid "You will redirected to the Monetico secured website after clicking on 'Place binding order'"
+msgstr "Sie werden auf die von Monetico gesicherte Website weitergeleitet, nachdem Sie auf \"Verbindlich bestellen\" geklickt haben"
+
+msgid "Go to Monetico secured website"
+msgstr "Zur gesicherten Website von Monetico"
