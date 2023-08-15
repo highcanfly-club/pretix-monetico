@@ -6,6 +6,11 @@ This is a plugin for [pretix](https://github.com/pretix/pretix).
 This is an alpha stage payment plugin for Pretix 4, it allows to use
 Monetico (CIC / Crédit Mutuel) online payment. 
 
+# Installation
+`pip install pretix-monetico`  
+You also need to give the url https://your.pretix.installation/plugins/payment/monetico to CIC/Crédit Mutuel as the "retour" url.
+The url is shared with organizers/events
+
 
 # Development setup
 

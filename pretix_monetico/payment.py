@@ -3,6 +3,8 @@ import json
 import uuid
 import sys
 from collections import OrderedDict
+from Crypto.Hash import SHA256
+from Crypto.Cipher import AES
 from datetime import datetime
 from decimal import Decimal
 from django import forms
@@ -29,7 +31,37 @@ from pretix_monetico.moneticoPaiementEpt import (
 
 MONETICOPAIEMENT_VERSION = "3.0"
 
+def get_crypto_key():
+    bKey = bytes(settings.SECRET_KEY,"utf-8")
+    hash_object = SHA256.new(data=bKey)
+    return hash_object.digest()
 
+def encrypt(key:bytes,data):
+    header = b"header"
+    cipher = AES.new(key, AES.MODE_CCM)
+    cipher.update(header)
+    ciphertext, tag = cipher.encrypt_and_digest(data)
+
+    json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
+    json_v = [ base64.b64encode(x).decode('utf-8') for x in (cipher.nonce, header, ciphertext, tag) ]
+    bJson = bytes(json.dumps(dict(zip(json_k, json_v))),"utf-8")
+    out = base64.b64encode(bJson).decode('utf-8')
+    return out
+
+def decrypt(key,b64_input):
+    json_input = base64.b64decode(b64_input)
+    try:
+        b64 = json.loads(json_input)
+        json_k = [ 'nonce', 'header', 'ciphertext', 'tag' ]
+        jv = {k:base64.b64decode(b64[k]) for k in json_k}
+
+        cipher = AES.new(key, AES.MODE_CCM, nonce=jv['nonce'])
+        cipher.update(jv['header'])
+        plaintext = cipher.decrypt_and_verify(jv['ciphertext'], jv['tag'])
+        return plaintext.decode('utf-8')
+    except (ValueError, KeyError):
+        return ''
+    
 def get_signed_uuid4(request):
     signer = Signer()
     uuid4_signed_bytes = signer.sign(
@@ -38,6 +70,23 @@ def get_signed_uuid4(request):
     signed_uuid4 = uuid4_signed_bytes.hex().upper()
     return signed_uuid4
 
+def get_signed_string(instr:str):
+    signer = Signer()
+    signed_bytes = signer.sign(
+        instr
+    ).encode("ascii")
+    signed_str = signed_bytes.hex().upper()
+    return signed_str
+
+def check_signed_string(instr:str):
+    signer = Signer()
+    signed_bytes = bytes.fromhex(instr)
+    signed = signed_bytes.decode("ascii")
+    try:
+        original = signer.unsign(signed)
+    except:
+        original = None
+    return original
 
 def check_signed_uuid4(signed_uuid4):
     signer = Signer()
@@ -266,7 +315,11 @@ class MoneticoPayment(BasePaymentProvider):
             "amount": str(payment.amount),
             "currency": self.event.currency,
             "merchant_id": self.settings.get("merchant_id"),
+            "organizer": self.event.organizer.slug,
+            "event": self.event.slug
         }
+        
+        # decrypto = decrypt(key,crypto)
         url = (
             build_absolute_uri(
                 request.event, "plugins:pretix_monetico:monetico.redirect"
@@ -277,22 +330,47 @@ class MoneticoPayment(BasePaymentProvider):
         print("MoneticoPayment.execute_payment url:{}".format(url), file=sys.stderr)
         return url
 
-    def get_monetico_locale(self, request):
+    def get_monetico_locale(self):
         languageDjango = get_language()
         localeDjango = to_locale(languageDjango)
         baseLocale = localeDjango[0:2]
         return baseLocale.upper()
 
+    def get_monetico_paiement(self):
+        return MoneticoPaiement_Ept(
+            MONETICOPAIEMENT_VERSION=MONETICOPAIEMENT_VERSION,
+            MONETICOPAIEMENT_KEY=self.settings.get("monetico_key"),
+            MONETICOPAIEMENT_EPTNUMBER=self.settings.get("monetico_ept_number"),
+            MONETICOPAIEMENT_URLSERVER=self.settings.get("monetico_url_server"),
+            MONETICOPAIEMENT_URLPAYMENT=self.settings.get("monetico_payment_url"),
+            MONETICOPAIEMENT_COMPANYCODE=self.settings.get("monetico_company_code"),
+            MONETICOPAIEMENT_URLOK=build_absolute_uri(
+                self.event, "plugins:pretix_monetico:monetico.ok"
+            ),
+            MONETICOPAIEMENT_URLKO=build_absolute_uri(
+                self.event, "plugins:pretix_monetico:monetico.nok"
+            ),
+            sLang=self.get_monetico_locale(),
+        )
+    
+    def get_oHMac(self):
+        oEpt = self.get_monetico_paiement()
+        return MoneticoPaiement_Hmac(oEpt)
+
     def get_monetico_params(self, request):
         # for key, value in request.session.items():
         #     print("{} => {}".format(key, value), file=sys.stderr)
-        sLang = self.get_monetico_locale(request)
+        sLang = self.get_monetico_locale()
         sDate = datetime.now().strftime("%d/%m/%Y:%H:%M:%S")
         sMontant = request.session['monetico_payment_info']['amount']
         sDevise = request.session['monetico_payment_info']['currency']
         sReference = request.session['monetico_payment_info']['order_code']
         sEmail = request.session["payment_moneticopayment_email"]
-        sTexteLibre = ''
+        key = get_crypto_key()
+        payment_info = bytes(json.dumps(request.session["monetico_payment_info"]),"utf-8")
+        crypto = encrypt(key,payment_info)
+        payment_info_signed = get_signed_string(crypto)
+        sTexteLibre = payment_info_signed
         contexteCommand = {
             "billing": {
                 "firstName": request.session["payment_moneticopayment_firstname"],
@@ -308,22 +386,7 @@ class MoneticoPayment(BasePaymentProvider):
             contexteCommand["billing"]["addressLine2"] = request.session["payment_moneticopayment_line2"]
         utf8ContexteCommande = json.dumps(contexteCommand).encode("utf8")
         sContexteCommande = base64.b64encode(utf8ContexteCommande).decode()
-        oEpt = MoneticoPaiement_Ept(
-            MONETICOPAIEMENT_VERSION=MONETICOPAIEMENT_VERSION,
-            MONETICOPAIEMENT_KEY=self.settings.get("monetico_key"),
-            MONETICOPAIEMENT_EPTNUMBER=self.settings.get("monetico_ept_number"),
-            MONETICOPAIEMENT_URLSERVER=self.settings.get("monetico_url_server"),
-            MONETICOPAIEMENT_URLPAYMENT=self.settings.get("monetico_payment_url"),
-            MONETICOPAIEMENT_COMPANYCODE=self.settings.get("monetico_company_code"),
-            MONETICOPAIEMENT_URLOK=build_absolute_uri(
-                request.event, "plugins:pretix_monetico:monetico.ok"
-            ),
-            MONETICOPAIEMENT_URLKO=build_absolute_uri(
-                request.event, "plugins:pretix_monetico:monetico.nok"
-            ),
-            sLang=sLang,
-        )
-        oMac = MoneticoPaiement_Hmac(oEpt)
+        oMac = self.get_oHMac()
         sChaineMAC = "*".join(
             [
                 f"TPE={oEpt.sNumero}",
@@ -343,7 +406,7 @@ class MoneticoPayment(BasePaymentProvider):
                 f"nbrech={''}",
                 f"reference={sReference}",
                 f"societe={oEpt.sCodeSociete}",
-                f"texte-libre={''}",
+                f"texte-libre={sTexteLibre}",
                 f"url_retour_err={oEpt.sUrlKo}",
                 f"url_retour_ok={oEpt.sUrlOk}",
                 f"version={oEpt.sVersion}",

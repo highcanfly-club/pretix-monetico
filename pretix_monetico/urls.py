@@ -10,3 +10,7 @@ event_patterns = [
     event_url(r'^monetico/payment/redirect',
               views.redirectview, name='monetico.redirect'),
 ]
+
+urlpatterns = [
+    re_path(r"^plugins/payment/monetico", views.monetico_return, name="monetico.return"),
+]
