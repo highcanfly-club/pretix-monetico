@@ -343,7 +343,10 @@ class MoneticoPayment(BasePaymentProvider):
         baseLocale = localeDjango[0:2]
         return baseLocale.upper()
 
-    def get_monetico_paiement(self):
+    def get_monetico_paiement(self, request=None):
+        query = ""
+        if request:
+            query = "?suuid4={}".format(get_signed_uuid4(request))
         return MoneticoPaiement_Ept(
             MONETICOPAIEMENT_VERSION=MONETICOPAIEMENT_VERSION,
             MONETICOPAIEMENT_KEY=self.settings.get("monetico_key"),
@@ -353,10 +356,12 @@ class MoneticoPayment(BasePaymentProvider):
             MONETICOPAIEMENT_COMPANYCODE=self.settings.get("monetico_company_code"),
             MONETICOPAIEMENT_URLOK=build_absolute_uri(
                 self.event, "plugins:pretix_monetico:monetico.ok"
-            ),
+            )
+            + query,
             MONETICOPAIEMENT_URLKO=build_absolute_uri(
                 self.event, "plugins:pretix_monetico:monetico.nok"
-            ),
+            )
+            + query,
             sLang=self.get_monetico_locale(),
         )
 
@@ -398,6 +403,7 @@ class MoneticoPayment(BasePaymentProvider):
         utf8ContexteCommande = json.dumps(contexteCommand).encode("utf8")
         sContexteCommande = base64.b64encode(utf8ContexteCommande).decode()
         oMac = self.get_oHMac()
+        oEpt = self.get_monetico_paiement(request)
         sChaineMAC = "*".join(
             [
                 f"TPE={oEpt.sNumero}",
