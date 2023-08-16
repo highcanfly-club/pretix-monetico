@@ -1,28 +1,30 @@
 {% load i18n %}
 {% if payment.state == "confirmed" and order.status == "p" %}
 <p>{% blocktrans trimmed %}
-    This order has been paid via Paybox/Up2Pay Payment.
+    This order has been paid via Monetico Payment.
     {% endblocktrans %}</p>
 
 <dl class="dl-horizontal">
     <dt>{% trans "Transaction" %}</dt>
-    <dd>{{ payment_info.transactionId }}</dd>
+    <dd>{{ payment_info.details.transactionID }}</dd>
     <dt>{% trans "Authorization" %}</dt>
-    <dd>{{ payment_info.authorizationId }}</dd>
-    <dt>{% trans "Card type" %}</dt>
-    <dd>{{ payment_info.cardType }}</dd>
+    <dd>{{ payment_info.numauto }}</dd>
+    <dt>{% trans "Protocol" %}</dt>
+    <dd>{{ payment_info.protocol }}</dd>
+    <dt>{% trans "3Ds status" %}</dt>
+    <dd>{{ payment_info.status }}</dd>
     <dt>{% trans "Card number" %}</dt>
-    <dd>{{ payment_info.cardNumber }}-- ---- ----</dd>
+    <dd>{{ payment_info.card }}</dd>
     <dt>{% trans "Card expiration" %}</dt>
-    <dd>{{ payment_info.cardExpiration }}</dd>
+    <dd>{{ payment_info.exp }}</dd>
     <dt>{% trans "Payment date" %}</dt>
-    <dd>{{ payment_info.date }} {{ payment_info.time }}</dd>
+    <dd>{{ payment_info.date }}</dd>
     <dt>{% trans "Reference" %}</dt>
-    <dd>{{ payment_info.payboxRef }}</dd>
+    <dd>{{ payment_info.ref }}</dd>
 </dl>
 {% else %}
 <p>{% blocktrans trimmed %}
-    This order has been planned to be paid via Paybox/Up2Pay Payment, but no payment has been received yet.
+    This order has been planned to be paid via Monetico Payment, but no payment has been received yet.
     {% endblocktrans %}</p>
 <dl class="dl-horizontal">
     <dt>{% trans "Reference code" %}</dt>

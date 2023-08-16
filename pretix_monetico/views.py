@@ -36,15 +36,15 @@ def ok(request, *args, **kwargs):
             payment = None
         if payment:
             return redirect(
-                        eventreverse(
-                            request.event,
-                            "presale:event.order",
-                            kwargs={
-                                "order": payment.order.code,
-                                "secret": payment.order.secret,
-                            },
-                        )
-                    )
+                eventreverse(
+                    request.event,
+                    "presale:event.order",
+                    kwargs={
+                        "order": payment.order.code,
+                        "secret": payment.order.secret,
+                    },
+                )
+            )
     return HttpResponse(_("unkown error"), status=200)
 
 
@@ -124,22 +124,33 @@ def monetico_return(request, *args, **kwargs):
             oHMac = payment_provider.get_oHMac()
             Certification = {}
             for key in request.GET:
-                if key == 'MAC':
+                if key == "MAC":
                     continue
                 Certification[key] = request.GET.get(key)
             sorted_params = dict(sorted(Certification.items()))
             print(sorted_params, file=sys.stderr)
-            sChaineMAC = '*'.join('{}={}'.format(key, value) for key, value in sorted_params.items())
-            bHMac = oHMac.bIsValidHmac(sChaineMAC,request.GET.get("MAC"))
+            sChaineMAC = "*".join(
+                "{}={}".format(key, value) for key, value in sorted_params.items()
+            )
+            bHMac = oHMac.bIsValidHmac(sChaineMAC, request.GET.get("MAC"))
             if bHMac:
-                if Certification['code-retour'] == "Annulation":
+                if Certification["code-retour"] == "Annulation":
                     payment.fail()
-                    return HttpResponse('NOK',status=200)
+                    return HttpResponse("NOK", status=200)
 
-                elif Certification['code-retour'] == "payetest" or Certification['code-retour'] == "paiement":
-                    payment.info_data = str(base64.b64decode(Certification['authentification']))
+                elif (
+                    Certification["code-retour"] == "payetest"
+                    or Certification["code-retour"] == "paiement"
+                ):
+                    info_data = json.loads(base64.b64decode(Certification["authentification"]))
+                    info_data['card'] = request.GET.get('cbmasquee')
+                    info_data['exp'] = request.GET.get('vld')
+                    info_data['date'] = request.GET.get('date')
+                    info_data['ref'] = request.GET.get('reference')
+                    info_data['numauto'] = request.GET.get('numauto')
+                    payment.info = json.dumps(info_data)
                     payment.confirm()
-                    return HttpResponse('OK',status=200)
+                    return HttpResponse("OK", status=200)
     return HttpResponse(
         _("Server Error"),
         status=500,
