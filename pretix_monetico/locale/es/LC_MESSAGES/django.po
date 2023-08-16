@@ -47,3 +47,27 @@ msgstr "Será redirigido al sitio web seguro de Monetico después de hacer clic 
 
 msgid "Go to Monetico secured website"
 msgstr "Ir al sitio web seguro de Monetico"
+
+msgid "Transaction"
+msgstr ""
+
+msgid "Authorization"
+msgstr ""
+
+msgid "Protocol"
+msgstr ""
+
+msgid "3Ds status"
+msgstr ""
+
+msgid "Card number"
+msgstr ""
+
+msgid "Card expiration"
+msgstr ""
+
+msgid "Payment date"
+msgstr ""
+
+msgid "Reference"
+msgstr ""
