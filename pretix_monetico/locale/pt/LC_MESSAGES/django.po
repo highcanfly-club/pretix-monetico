@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2017-03-07 19:01+0100\n"
-"PO-Revision-Date: 2023-08-15 14:23+0000\n"
+"PO-Revision-Date: 2023-08-16 09:26+0000\n"
 "Last-Translator: Weblate Admin <ronan.le_meillat@parapente.eu.org>\n"
 "Language-Team: Portuguese <https://weblate.oci.sctg.eu.org/projects/pretix-monetico/source/pt/>\n"
 "Language: pt\n"
@@ -49,25 +49,25 @@ msgid "Go to Monetico secured website"
 msgstr "Ir para o site seguro da Monetico"
 
 msgid "Transaction"
-msgstr ""
+msgstr "Transação"
 
 msgid "Authorization"
-msgstr ""
+msgstr "Autorização"
 
 msgid "Protocol"
-msgstr ""
+msgstr "Regras de"
 
 msgid "3Ds status"
-msgstr ""
+msgstr "Status 3Ds"
 
 msgid "Card number"
-msgstr ""
+msgstr "Número do cartão"
 
 msgid "Card expiration"
-msgstr ""
+msgstr "Validade do cartão"
 
 msgid "Payment date"
-msgstr ""
+msgstr "Data de pagamento"
 
 msgid "Reference"
-msgstr ""
+msgstr "Referência"
