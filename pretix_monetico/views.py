@@ -9,6 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from django_scopes import scope
 from pretix.base.models import Event, OrderPayment, Organizer
 from pretix.multidomain.urlreverse import eventreverse
+from django.views.decorators.csrf import csrf_exempt
 from urllib.parse import parse_qs, urlparse
 
 from .payment import (
@@ -51,7 +52,6 @@ def ok(request, *args, **kwargs):
 def nok(request, *args, **kwargs):
     print("views.nok", file=sys.stderr)
     return annule(request, kwargs)
-
 
 def annule(request, *args, **kwargs):
     print("views.annule", file=sys.stderr)
@@ -107,9 +107,14 @@ def redirectview(request, *args, **kwargs):
 
     return HttpResponse(_("Server Error"), status=500)
 
-
+@csrf_exempt
 def monetico_return(request, *args, **kwargs):
-    texte_libre = request.GET.get("texte-libre")
+    if request.method == "GET":      
+        access_method = request.GET
+    elif request.method == "POST":
+        access_method = request.POST
+    
+    texte_libre = access_method.get("texte-libre")
     payment_info_encrypted = check_signed_string(texte_libre)
     if payment_info_encrypted:
         # sign is correct
@@ -123,16 +128,16 @@ def monetico_return(request, *args, **kwargs):
             payment_provider = MoneticoPayment(event)
             oHMac = payment_provider.get_oHMac()
             Certification = {}
-            for key in request.GET:
+            for key in access_method:
                 if key == "MAC":
                     continue
-                Certification[key] = request.GET.get(key)
+                Certification[key] = access_method.get(key)
             sorted_params = dict(sorted(Certification.items()))
             print(sorted_params, file=sys.stderr)
             sChaineMAC = "*".join(
                 "{}={}".format(key, value) for key, value in sorted_params.items()
             )
-            bHMac = oHMac.bIsValidHmac(sChaineMAC, request.GET.get("MAC"))
+            bHMac = oHMac.bIsValidHmac(sChaineMAC, access_method.get("MAC"))
             if bHMac:
                 if Certification["code-retour"] == "Annulation":
                     payment.fail()
@@ -143,15 +148,15 @@ def monetico_return(request, *args, **kwargs):
                     or Certification["code-retour"] == "paiement"
                 ):
                     info_data = json.loads(base64.b64decode(Certification["authentification"]))
-                    info_data['card'] = request.GET.get('cbmasquee')
-                    info_data['exp'] = request.GET.get('vld')
-                    info_data['date'] = request.GET.get('date')
-                    info_data['ref'] = request.GET.get('reference')
-                    info_data['numauto'] = request.GET.get('numauto')
+                    info_data['card'] = access_method.get('cbmasquee')
+                    info_data['exp'] = access_method.get('vld')
+                    info_data['date'] = access_method.get('date')
+                    info_data['ref'] = access_method.get('reference')
+                    info_data['numauto'] = access_method.get('numauto')
                     payment.info = json.dumps(info_data)
                     payment.confirm()
                     return HttpResponse("OK", status=200)
     return HttpResponse(
-        _("Server Error"),
+        _("Server Error signature is wrong"),
         status=500,
     )
